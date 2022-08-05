@@ -1,0 +1,327 @@
+---
+title: "Code_Thesis"
+output: notebook
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Notations & important formulas
+
+- Matrix Ds : include the binary mutational profiles of ns different single cells on the set of m somatic mutations
+- Expected genotype matrix Gs : binary matrix. Row = single cell of the sth experiment. Column = a mutation or an aggregate mutational event.
+- $$α$$ (alpha) : False positive rates
+- $$β$$ (beta) : False negative rates
+
+
+
+Weighted likelihood :
+
+$$
+P(\{\textbf{D}\}_{s=1}^y | \{\textbf{G}_s\}_{s=1}^y , \{\alpha_s\}_{s=1}^y,\{\beta_s\}_{s=1}^y) = \prod_{s=1}^y P(\textbf{D}_s | \textbf{G}_s, \alpha_s, \beta_s)^{w_s}
+$$
+We employ the following formula to compute the previous one : 
+
+$$ 
+P(\textbf{D}_s | \textbf{G}_s, \alpha_s, \beta_s) = \prod_{i=1}^n\prod_{j=1}^m P(d_{i,j}^s | g_{i,j}^s, \alpha_s, \beta_s)
+$$
+where we have :
+
+$$
+P(d_{i,j}^s | g_{i,j}^s, \alpha_s, \beta_s) = \left\{
+  \begin{array}{l}
+    \alpha_s, & if &  d_{i,j}^s=1 & and &g_{i,j}^s=0, \\
+    1- \alpha_s, &  if & d_{i,j}^s=1 & and & g_{i,j}^s=1,\\
+    \beta_s, &  if &  d_{i,j}^s=0 & and & g_{i,j}^s=1,\\
+    1- \beta_s,  &  if & d_{i,j}^s=0 & and & g_{i,j}^s=0,\\
+    1,   & if  & d_{i,j}^s=NA, \\
+  \end{array}
+\right.
+
+$$
+
+## Thesis context
+
+A likelihood function is used in the LACE method.The approach consist on maximizing the weighted likelihood function.
+One of the problems that can occur with a large amount of data is noise. In this case we can have error rates (alpha and beta as defined before). We can also have no value (represented as NA).
+These errors and especially the NA can have a negative impact on the calculation (computing).
+The goal here is to reduce this impact and obtain the best result for the likelihood.
+
+We define the likelihood for one matrix with this formula : 
+
+$$
+L_i = \alpha^{FP}(1-\alpha)^{n-FP}\beta^{FN}(1-\beta)^{n-FN}
+$$
+To have the overall likelihood we have the following formula : 
+
+$$
+L = \sum_{i=1}^n L_i
+$$
+If we want the weighted likelihood we just have to add the weight in the formula : 
+
+$$
+L = \sum_{i=1}^n L_i*w_i
+$$
+## Practical part
+
+################Initialization################
+```{r Initialisation}
+
+NM=47                   #Number of matrices
+i=60                    #Lines in each matrix
+j=4                     #Columns in each matrix
+list_likelihood = c()   #Contains all likelihood values for all matrices
+list_NA = c()           #Contains the number of NA in each matrix
+list_weigth = c()       #Contains all weight values for all matrices
+list_alpha = c()        #Contains all alpha values for all matrices
+list_beta = c()         #Contains all beta values for all matrices
+list_FP = c()           #Contains the number of FP in each matrix
+list_FN = c()           #Contains the number of FN in each matrix
+df = data.frame(matrix(ncol = 0, nrow = 0))
+order_df = data.frame(matrix(ncol = 0, nrow = 0))
+```
+
+################Generation of an example################
+
+``` {r Generation}
+
+#This function allows to create the different lists needed to generate different examples to test the idea
+
+lists <- function(NM,i,j){ #NM = Number of matrices used to calculate the global likelihood
+  list_alpha <<- c(round(runif(NM,0,0.5), digit = 2))
+  list_beta <<- c(round(runif(NM,0,0.5), digit = 2))
+  #list_NA <<- c(sample(0:((i*j)/3),NM, replace=F))
+  #list_FP <<- c(sample(0:((i*j)/3),NM, replace=F))
+  #list_FN <<- c(sample(0:((i*j)/3),NM, replace=F))
+  list_NA <<- c(round(runif(NM,0,(i*j)/3), digit = 0))
+  list_FP <<- c(round(runif(NM,0,(i*j)/3), digit = 0))
+  list_FN <<- c(round(runif(NM,0,(i*j)/3), digit = 0))
+}
+
+lists(NM,i,j)
+```
+
+################Likelihood################
+
+``` {r Likelihood}
+
+#This function calculates the likelihood value for each of the matrices. The formula is the one we mentioned before.
+
+likelihood <-function(NM,i,j,alpha,beta,FP, FN){ #List_NA,alpha,beta,
+  list_likelihood <<- c()
+  for (i in 1:NM){
+    n=i*j
+    L <- (alpha[i]^FP[i])*((1-alpha[i])^(n-FP[i]))*(beta[i]^FN[i])*((1-beta[i])^(n-FN[i]))
+      list_likelihood <<- append(list_likelihood, L)
+  }
+}
+
+loglikelihood <-function(NM,i,j,alpha,beta,FP, FN){ #List_NA,alpha,beta,
+  list_likelihood <<- c()
+  for (i in 1:NM){
+    n=i*j
+    L <- -log((alpha[i]^FP[i])*((1-alpha[i])^(n-FP[i]))*(beta[i]^FN[i])*((1-beta[i])^(n-FN[i])))
+      list_likelihood <<- append(list_likelihood, L)
+  }
+}
+
+likelihood(NM,i,j,list_alpha, list_beta, list_FP, list_FN)
+list_likelihood
+```
+
+################Ordering the list of NA & creation of the matrix of values################
+
+``` {r Odered NA & matrix of values}
+
+#This part allows to order the list of NA to have the matrices with the smallest number of NA first, and the one with the most NA last.
+#We then create a table containing the likelihood values and the NA number for each matrix
+
+NA_order <- function(){
+  df <<- data.frame("Likelihood" = list_likelihood, "NumberNA" = list_NA)
+  order_df <<- df[order(df$"NumberNA"),]
+}
+
+NA_order()
+df
+order_df
+```
+
+################Definition of the global weight################
+
+``` {r Global weight}
+
+#This function calculates the overall starting value for the weight. 
+#Remember that the sum of the weights must be equal to 1.
+#We therefore take this value and divide it by the number of matrices we have.
+
+global_weigths <- function(NM) {
+  gw <- 1/ NM
+  list_weigth <<- c()
+  for (i in 1:NM) {
+    list_weigth[i] <<- gw
+  }
+}
+
+global_weigths(NM)
+list_weigth
+```
+
+################Definition of ordered weights################
+
+``` {r Ordered weights}
+
+#Now, the reasoning is that we rely on the number of NA present in each matrix.
+#We modify the weight values to obtain a progressive list of values according to the previous criterion
+#For example, if we have 5 matrices instead of having the values : (0.2,0.2,0.2,0.2,0.2)
+#we have : (0.4,0.3,0.2,0.1,0)
+#We take into account if the vector has an even or odd length 
+
+weights <- function(NM){
+  mid <<-ceiling(NM/2)
+  if (NM%%2 == 0){ #if the number of matrices is odd or even
+    lim <<- mid+1
+  } else {lim <<- mid }
+  for (p in 1:lim) {
+    if (p == mid || p==lim) {
+      list_weigth[p] <<- list_weigth[p]
+    } else {
+      list_weigth[p] <<- list_weigth[p] + (list_weigth[NM-(p-1)]/p)
+      list_weigth[NM-(p-1)] <<- list_weigth[NM-(p-1)] - (list_weigth[NM-(p-1)]/p)
+      }
+    
+  }
+}
+
+weights(NM)
+list_weigth
+```
+
+################Definition of final weights################
+
+``` {r Final weights}
+
+#We have to check if several matrices have the same NA number.
+#In this case, these matrices will have the same weight value.
+
+sum = 0
+final_w = 0
+
+eq_weights <- function(i,j){
+  for (c in 0:((i*j)-1)){
+    eq <<- c(which((c == order_df$NumberNA) == TRUE))
+    if (length(eq)>1){
+      sum=0
+      final_w=0
+      for (p in eq){
+        sum = sum + list_weigth[p]
+      }
+      final_w = sum / length(eq)
+      for (fw in eq) {
+        list_weigth[fw] <<- final_w
+      }
+    }
+  }
+}
+eq_weights(i,j)
+list_weigth
+```
+
+################Addition of weights in the matrix################
+
+``` {r Data frame}
+
+#We add the column with weight values corresponding to each matrix. 
+
+data = cbind(order_df, "Weight" = list_weigth)
+data
+```
+
+################Calculation of Likelihood and Weighted Likelihood################
+
+``` {r Final computation}
+
+#In this final function, we compute the weighted likelihood and the likelihood according to the functions we mentioned at the beginning.
+
+WL = 0
+L = 0
+final_wlikelihood <- function(df2,NM){
+  for (i in 1:NM){
+    WL <<- WL + df2$Likelihood[i]*df2$Weight[i]
+    return(WL)
+  }
+}
+final_likelihood <- function(df2,NM){
+  for (i in 1:NM){
+    L <<- L + df2$Likelihood[i]
+    return(L)
+  }
+}
+
+final_wlikelihood(data,NM)
+final_likelihood(data,NM)
+
+```
+
+################Retrieving data for comparison################
+
+```{r Function}
+  NM=47                   #Number of matrices
+  i=60                    #Lines in each matrix
+  j=4                     #Columns in each matrix
+  list_likelihood = c()   #Contains all likelihood values for all matrices
+  list_NA = c()           #Contains the number of NA in each matrix
+  list_weigth = c()       #Contains all weight values for all matrices
+  list_alpha = c()        #Contains all alpha values for all matrices
+  list_beta = c()         #Contains all beta values for all matrices
+  list_FP = c()           #Contains the number of FP in each matrix
+  list_FN = c()           #Contains the number of FN in each matrix
+  df = data.frame(matrix(ncol = 0, nrow = 0))
+  order_df = data.frame(matrix(ncol = 0, nrow = 0))
+  WL = 0
+  L = 0
+  DPWL = c()
+  DPL = c()
+  l=0
+  
+final <- function(d){
+  lists(NM,i,j)
+  loglikelihood(NM,i,j,list_alpha, list_beta, list_FP, list_FN)
+  NA_order()
+  global_weigths(NM)
+  weights(NM)
+  eq_weights(i,j)
+  data = cbind(order_df, "Weight" = list_weigth)
+  DPWL[d] <<- final_wlikelihood(data,NM)
+  DPL[d] <<- final_likelihood(data,NM)
+}
+
+```
+
+################Plot################
+
+```{r PLOT}
+data_plot <- function(x) {
+  l <<- x
+  for (i in 0:x){
+    final(i)
+  }
+}
+
+data_plot(20)
+
+plot(DPL, col="darkgreen")
+plot(DPWL, col="red")
+
+matplot(1:l,cbind(DPL,DPWL),pch=20, col=c("darkgreen","red"))
+```
+
+################Conclusion################
+
+To compare the values obtained for likelihood and weighted likelihood I used the negative log which allows us to have more interpretable values.
+We obtain these graphs and we can see that the likelihood values are always higher than the weighted one.
+This allows us to conclude in several ways: 
+  - This difference can be explained by the inclusion of NA. Indeed, our objective is to maximize the likelihood function. However, when a NA is present, we set 1. This is not without consequence because it increases the value of the likelihood when this should not be the case.
+We can therefore conclude here that, although the values obtained by integrating the weights give us smaller values, these would therefore better reflect the results provided by the model.
+  - The other conclusion is that there may be an error in the code and in the formulation of a formula, which could explain this big difference.
+  - We can also identify a limit, which is to not take into account the matrix with the highest number of NA. This could also mislead the final result, decreasing it
