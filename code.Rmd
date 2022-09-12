@@ -68,17 +68,17 @@ $$
 ################Initialization################
 ```{r Initialisation}
 
-NM=47                   #Number of matrices
+NM=20                   #Number of matrices
 i=60                    #Lines in each matrix
 j=4                     #Columns in each matrix
 list_likelihood = c()   #Contains all likelihood values for all matrices
 list_NA = c()           #Contains the number of NA in each matrix
-list_weigth = c()       #Contains all weight values for all matrices
+list_weight = c()       #Contains all weight values for all matrices
 list_alpha = c()        #Contains all alpha values for all matrices
 list_beta = c()         #Contains all beta values for all matrices
 list_FP = c()           #Contains the number of FP in each matrix
 list_FN = c()           #Contains the number of FN in each matrix
-df = data.frame(matrix(ncol = 0, nrow = 0))
+df1 = data.frame(matrix(ncol = 0, nrow = 0))
 order_df = data.frame(matrix(ncol = 0, nrow = 0))
 ```
 
@@ -108,7 +108,7 @@ lists(NM,i,j)
 
 #This function calculates the likelihood value for each of the matrices. The formula is the one we mentioned before.
 
-likelihood <-function(NM,i,j,alpha,beta,FP, FN){ #List_NA,alpha,beta,
+likelihood <-function(NM,i,j,alpha,beta,FP, FN){
   list_likelihood <<- c()
   for (i in 1:NM){
     n=i*j
@@ -126,7 +126,12 @@ loglikelihood <-function(NM,i,j,alpha,beta,FP, FN){ #List_NA,alpha,beta,
   }
 }
 
-likelihood(NM,i,j,list_alpha, list_beta, list_FP, list_FN)
+#likelihood(NM,i,j,list_alpha, list_beta, list_FP, list_FN)
+loglikelihood(NM,i,j,list_alpha, list_beta, list_FP, list_FN)
+while((Inf %in% list_likelihood)== TRUE) {
+  lists(NM,i,j)
+  loglikelihood(NM,i,j,list_alpha, list_beta, list_FP, list_FN)
+}
 list_likelihood
 ```
 
@@ -138,12 +143,12 @@ list_likelihood
 #We then create a table containing the likelihood values and the NA number for each matrix
 
 NA_order <- function(){
-  df <<- data.frame("Likelihood" = list_likelihood, "NumberNA" = list_NA)
-  order_df <<- df[order(df$"NumberNA"),]
+  df1 <<- data.frame("Likelihood" = list_likelihood, "NumberNA" = list_NA)
+  order_df <<- df1[order(df1$"NumberNA"),]
 }
 
 NA_order()
-df
+df1
 order_df
 ```
 
@@ -155,16 +160,16 @@ order_df
 #Remember that the sum of the weights must be equal to 1.
 #We therefore take this value and divide it by the number of matrices we have.
 
-global_weigths <- function(NM) {
+global_weights <- function(NM) {
   gw <- 1/ NM
-  list_weigth <<- c()
+  list_weight <<- c()
   for (i in 1:NM) {
-    list_weigth[i] <<- gw
+    list_weight[i] <<- gw
   }
 }
 
-global_weigths(NM)
-list_weigth
+global_weights(NM)
+list_weight
 ```
 
 ################Definition of ordered weights################
@@ -174,7 +179,7 @@ list_weigth
 #Now, the reasoning is that we rely on the number of NA present in each matrix.
 #We modify the weight values to obtain a progressive list of values according to the previous criterion
 #For example, if we have 5 matrices instead of having the values : (0.2,0.2,0.2,0.2,0.2)
-#we have : (0.4,0.3,0.2,0.1,0)
+#we will have : (0.4,0.3,0.2,0.1,0)
 #We take into account if the vector has an even or odd length 
 
 weights <- function(NM){
@@ -184,17 +189,17 @@ weights <- function(NM){
   } else {lim <<- mid }
   for (p in 1:lim) {
     if (p == mid || p==lim) {
-      list_weigth[p] <<- list_weigth[p]
+      list_weight[p] <<- list_weight[p]
     } else {
-      list_weigth[p] <<- list_weigth[p] + (list_weigth[NM-(p-1)]/p)
-      list_weigth[NM-(p-1)] <<- list_weigth[NM-(p-1)] - (list_weigth[NM-(p-1)]/p)
+      list_weight[p] <<- list_weight[p] + (list_weight[NM-(p-1)]/p)
+      list_weight[NM-(p-1)] <<- list_weight[NM-(p-1)] - (list_weight[NM-(p-1)]/p)
       }
     
   }
 }
 
 weights(NM)
-list_weigth
+list_weight
 ```
 
 ################Definition of final weights################
@@ -214,17 +219,17 @@ eq_weights <- function(i,j){
       sum=0
       final_w=0
       for (p in eq){
-        sum = sum + list_weigth[p]
+        sum = sum + list_weight[p]
       }
       final_w = sum / length(eq)
       for (fw in eq) {
-        list_weigth[fw] <<- final_w
+        list_weight[fw] <<- final_w
       }
     }
   }
 }
 eq_weights(i,j)
-list_weigth
+list_weight
 ```
 
 ################Addition of weights in the matrix################
@@ -233,7 +238,7 @@ list_weigth
 
 #We add the column with weight values corresponding to each matrix. 
 
-data = cbind(order_df, "Weight" = list_weigth)
+data = cbind(order_df, "Weight" = list_weight)
 data
 ```
 
@@ -248,14 +253,14 @@ L = 0
 final_wlikelihood <- function(df2,NM){
   for (i in 1:NM){
     WL <<- WL + df2$Likelihood[i]*df2$Weight[i]
-    return(WL)
   }
+  return(WL)
 }
 final_likelihood <- function(df2,NM){
   for (i in 1:NM){
     L <<- L + df2$Likelihood[i]
-    return(L)
   }
+  return(L)
 }
 
 final_wlikelihood(data,NM)
@@ -266,34 +271,38 @@ final_likelihood(data,NM)
 ################Retrieving data for comparison################
 
 ```{r Function}
-  NM=47                   #Number of matrices
-  i=60                    #Lines in each matrix
-  j=4                     #Columns in each matrix
+initialization <- function(){
+  NM<<-10                   #Number of matrices (max for time = 150)
+  i<<-60                    #Lines in each matrix
+  j<<-4                     #Columns in each matrix
   list_likelihood = c()   #Contains all likelihood values for all matrices
   list_NA = c()           #Contains the number of NA in each matrix
-  list_weigth = c()       #Contains all weight values for all matrices
+  list_weight = c()       #Contains all weight values for all matrices
   list_alpha = c()        #Contains all alpha values for all matrices
   list_beta = c()         #Contains all beta values for all matrices
   list_FP = c()           #Contains the number of FP in each matrix
   list_FN = c()           #Contains the number of FN in each matrix
-  df = data.frame(matrix(ncol = 0, nrow = 0))
-  order_df = data.frame(matrix(ncol = 0, nrow = 0))
-  WL = 0
-  L = 0
-  DPWL = c()
-  DPL = c()
-  l=0
-  
+  df1 <<- data.frame(matrix(ncol = 0, nrow = 0))
+  order_df <<- data.frame(matrix(ncol = 0, nrow = 0))
+  results_df <<- data.frame(matrix(ncol = 0, nrow = 0))
+  WL <<- 0
+  L <<- 0
+}
+ 
 final <- function(d){
+  initialization()
   lists(NM,i,j)
   loglikelihood(NM,i,j,list_alpha, list_beta, list_FP, list_FN)
+  while((Inf %in% list_likelihood)== TRUE) {
+  lists(NM,i,j)
+  loglikelihood(NM,i,j,list_alpha, list_beta, list_FP, list_FN)}
   NA_order()
-  global_weigths(NM)
+  global_weights(NM)
   weights(NM)
   eq_weights(i,j)
-  data = cbind(order_df, "Weight" = list_weigth)
-  DPWL[d] <<- final_wlikelihood(data,NM)
-  DPL[d] <<- final_likelihood(data,NM)
+  order_df <<- cbind(order_df, "Weight" = list_weight)
+  DPWL[d] <<- final_wlikelihood(order_df,NM)
+  DPL[d] <<- final_likelihood(order_df,NM)
 }
 
 ```
@@ -302,18 +311,24 @@ final <- function(d){
 
 ```{r PLOT}
 data_plot <- function(x) {
+  DPWL <<- c()
+  DPL <<- c()
   l <<- x
   for (i in 0:x){
     final(i)
   }
+  results_df <<- data.frame("Likelihood" = DPL , "WLikelihood" = DPWL)
 }
 
-data_plot(20)
+data_plot(NM)
+results_df
 
-plot(DPL, col="darkgreen")
-plot(DPWL, col="red")
+plot(DPL, col="darkgreen",xlab = "Nth result of the function final()" )
+plot(DPWL, col="red", xlab = "Nth result of the function final()")
 
-matplot(1:l,cbind(DPL,DPWL),pch=20, col=c("darkgreen","red"))
+matplot(1:l,cbind(DPL,DPWL),pch=20, col=c("darkgreen","red"), xlab = "Nth result of the function final()", ylab= "Values of DPL and DPWL")
+legend("topleft", legend=c("DPL", "DPWL"),
+       col=c("darkgreen", "red"), pch=20)
 ```
 
 ################Conclusion################
