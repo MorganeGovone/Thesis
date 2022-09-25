@@ -246,17 +246,24 @@ data
 
 ``` {r Final computation}
 
-#In this final function, we compute the weighted likelihood and the likelihood according to the functions we mentioned at the beginning.
+#In this final function, we compute the likelihood and the weighted likelihood (with 5% or 10% intervals and without ) according to the functions we mentioned at the beginning.
 
 WL = 0
+WL5 =0
+WL10 =0
 L = 0
+
 final_wlikelihood <- function(df2,NM){
   for (i in 1:NM){
+    WL5 <<- WL5 + df2$Likelihood[i]*df2$Weight5[i]
+    WL10 <<- WL10 + df2$Likelihood[i]*df2$Weight10[i]
     WL <<- WL + df2$Likelihood[i]*df2$Weight[i]
   }
   return(WL)
 }
+
 final_likelihood <- function(df2,NM){
+  L<<-0
   for (i in 1:NM){
     L <<- L + df2$Likelihood[i]
   }
@@ -271,17 +278,20 @@ final_likelihood(data,NM)
 ################Retrieving data for comparison################
 
 ```{r Function}
+
+#We join all the previous functions to be able to run the final function several times without having to restart everything each time. This also allows us to run it as many times as we want in order to do our tests and comparisons.
+
 initialization <- function(){
-  NM<<-10                   #Number of matrices (max for time = 150)
-  i<<-60                    #Lines in each matrix
-  j<<-4                     #Columns in each matrix
-  list_likelihood = c()   #Contains all likelihood values for all matrices
-  list_NA = c()           #Contains the number of NA in each matrix
-  list_weight = c()       #Contains all weight values for all matrices
-  list_alpha = c()        #Contains all alpha values for all matrices
-  list_beta = c()         #Contains all beta values for all matrices
-  list_FP = c()           #Contains the number of FP in each matrix
-  list_FN = c()           #Contains the number of FN in each matrix
+  NM<<-10                 
+  i<<-60                  
+  j<<-4                   
+  list_likelihood = c() 
+  list_NA = c()         
+  list_weight = c()    
+  list_alpha = c()     
+  list_beta = c()
+  list_FP = c()           
+  list_FN = c()           
   df1 <<- data.frame(matrix(ncol = 0, nrow = 0))
   order_df <<- data.frame(matrix(ncol = 0, nrow = 0))
   results_df <<- data.frame(matrix(ncol = 0, nrow = 0))
@@ -301,8 +311,10 @@ final <- function(d){
   weights(NM)
   eq_weights(i,j)
   order_df <<- cbind(order_df, "Weight" = list_weight)
-  DPWL[d] <<- final_wlikelihood(order_df,NM)
-  DPL[d] <<- final_likelihood(order_df,NM)
+  final_wlikelihood(order_df,NM)
+  final_likelihood(order_df,NM)
+  DPWL[d] <<- WL
+  DPL[d] <<- L
 }
 
 ```
@@ -340,3 +352,317 @@ This allows us to conclude in several ways:
 We can therefore conclude here that, although the values obtained by integrating the weights give us smaller values, these would therefore better reflect the results provided by the model.
   - The other conclusion is that there may be an error in the code and in the formulation of a formula, which could explain this big difference.
   - We can also identify a limit, which is to not take into account the matrix with the highest number of NA. This could also mislead the final result, decreasing it
+  
+  
+  
+#######METHOD2#######
+
+In this section we will apply method 2 which is described in the report.
+Remember that this method is based on the implementation of a system of intervals.
+Two possibilities: intervals of 5% or 10% deviation.
+
+################Computation of the ratio################
+```{R Ratio}
+ratio = c()
+
+Ratio <- function(){
+  for (l in order_df$NumberNA){
+    diff = l/(i*j)
+    ratio <<- append(ratio, diff)
+    }
+  order_df <<- cbind(order_df, "ratio" = ratio)
+}
+
+Ratio()
+ratio
+order_df
+
+```
+
+################Setting up the intervals################
+
+```{R Intervals}
+
+#With this function we create the intervals that we will use later.
+#We have made a function for each case (5 or 10%) to allow us to use them separately when we need them
+
+inter5 = c()
+inter10 = c()
+
+Intervals10 <- function(){
+  if(!require('memisc')) {
+  install.packages('memisc')
+  library('memisc')
+  }
+  rat_tot = order_df$ratio
+  for (rat in rat_tot) {
+  test=cases(
+    "1"=rat <= 0.10,
+    "2"=(rat > 0.10 & rat<= 0.20),
+    "3"=(rat > 0.20 & rat<= 0.30),
+    "4"=(rat > 0.30 & rat<= 0.40),
+    "5"=(rat > 0.40 & rat<= 0.50),
+    "6"=(rat > 0.50 & rat<= 0.60),
+    "7"=(rat > 0.60 & rat<= 0.70),
+    "8"=(rat > 0.70 & rat<= 0.80),
+    "9"=(rat > 0.80 & rat<= 0.90),
+    "10"=(rat > 0.90),
+    check.xor="ignore"
+  )
+  inter10 <<- append(inter10,test)
+  }
+  order_df <<- cbind(order_df, "Interval10" = inter10)
+}
+
+Intervals5 <- function(){
+  if(!require('memisc')) {
+    install.packages('memisc')
+    library('memisc')
+  }
+  rat_tot = order_df$ratio
+  for (rat in rat_tot) {
+    test=cases(
+      "1"=rat <= 0.05,
+      "2"=(rat > 0.05 & rat<= 0.10),
+      "3"=(rat > 0.10 & rat<= 0.15),
+      "4"=(rat > 0.15 & rat<= 0.20),
+      "5"=(rat > 0.20 & rat<= 0.25),
+      "6"=(rat > 0.25 & rat<= 0.30),
+      "7"=(rat > 0.30 & rat<= 0.35),
+      "8"=(rat > 0.35 & rat<= 0.40),
+      "9"=(rat > 0.40 & rat<= 0.45),
+      "10"=(rat > 0.45 & rat<= 0.50),
+      "11"=(rat > 0.50 & rat<= 0.55),
+      "12"=(rat > 0.55 & rat<= 0.60),
+      "13"=(rat > 0.60 & rat<= 0.65),
+      "14"=(rat > 0.65 & rat<= 0.70),
+      "15"=(rat > 0.70 & rat<= 0.75),
+      "16"=(rat > 0.75 & rat<= 0.80),
+      "17"=(rat > 0.80 & rat<= 0.85),
+      "18"=(rat > 0.85 & rat<= 0.90),
+      "19"=(rat > 0.90 & rat<= 0.95),
+      "20"=(rat > 0.95),
+      check.xor="ignore"
+    )
+    inter5 <<- append(inter5,test)
+  }
+  order_df <<- cbind(order_df, "Interval5" = inter5)
+}
+
+Intervals5()
+inter5
+Intervals10()
+inter10
+order_df
+```
+
+################Definition of the global weight################
+
+```{R}
+
+#We use the same function as the previous one, we only change the variables in order not to make mistakes between the two methods and use the wrong elements
+
+global_weigths_int <- function(NM) {
+  gw <- 1/ NM
+  list_weight_inter <<- c()
+  for (i in 1:NM) {
+    list_weight_inter[i] <<- gw
+  }
+}
+
+global_weigths_int(NM)
+list_weight_inter
+```
+
+################Definition of ordered weight################
+```{R}
+weights_int <- function(NM){
+  mid <<-ceiling(NM/2)
+  if (NM%%2 == 0){ #if the number of matrices is odd or even
+    lim <<- mid+1
+  } else {lim <<- mid }
+  for (p in 1:lim) {
+    if (p == mid || p==lim) {
+      list_weight_inter[p] <<- list_weight_inter[p]
+    } else {
+      list_weight_inter[p] <<- list_weight_inter[p] + (list_weight_inter[NM-(p-1)]/p)
+      list_weight_inter[NM-(p-1)] <<- list_weight_inter[NM-(p-1)] - (list_weight_inter[NM-(p-1)]/p)
+    }
+    
+  }
+}
+
+weights_int(NM)
+list_weight_inter
+```
+
+################Plot################
+```{R}
+
+#With this function, we set up the vector of weight.
+#We create two vectors: One contains the weight per interval (final_weight) and the other the weight for each matrix in each interval (inter_weight).
+
+inter_weight5 = c()
+final_weight5= c()
+inter_weight10 = c()
+final_weight10 = c()
+
+weight_int <- function() {
+  for (t in 1:NM){
+  sum5 = 0
+  sum10 = 0
+  ind5 <<- c(which((order_df$Interval5==t) == TRUE))
+  ind10 <<- c(which((order_df$Interval10==t) == TRUE))
+  if (length(ind5) >0){
+    for (i in ind5){ sum5 = sum5 + list_weight_inter[i] }
+    inter_weight5 <<- append(inter_weight5,sum5/length(ind5))
+    final_weight5 <<- append(final_weight5,sum5)
+  } else {
+    inter_weight5 <<- append(inter_weight5,sum5/length(ind5))
+    final_weight5 <<- append(final_weight5,sum5)
+  }
+  if (length(ind10) >0){
+    for (i in ind10){ sum10 = sum10 + list_weight_inter[i] }
+    inter_weight10 <<- append(inter_weight10,sum10/length(ind10))
+    final_weight10 <<- append(final_weight10,sum10)
+  } else {
+    inter_weight10 <<- append(inter_weight10,sum10/length(ind10))
+    final_weight10 <<- append(final_weight10,sum10)
+  }
+}
+}
+
+weight_int()
+```
+
+################Retrieving data for comparison between method################
+
+```{r Function}
+initialization <- function(){
+  NM<<-20                   #Number of matrices (max = 150)
+  i<<-60                    
+  j<<-4                     
+  list_likelihood = c()   
+  list_NA = c()           
+  list_weight = c()       
+  list_alpha = c()        
+  list_beta = c()        
+  list_FP = c()           
+  list_FN = c()           
+  df1 <<- data.frame(matrix(ncol = 0, nrow = 0))
+  order_df <<- data.frame(matrix(ncol = 0, nrow = 0))
+  results_df <<- data.frame(matrix(ncol = 0, nrow = 0))
+  WL <<- 0
+  WL5 <<- 0
+  WL10 <<-0
+  L <<- 0
+}
+
+initialization2 <- function(){
+  inter5 <<- c()
+  inter10 <<- c()
+  ratio <<- c()
+  inter_weight5 <<- c()
+  final_weight5 <<- c()
+  inter_weight10 <<- c()
+  final_weight10 <<- c()
+  list_weight5 <<- c()
+  list_weight10 <<- c()
+  list_weight_inter <<- c()
+  order_df_int <<- data.frame(matrix(ncol = 0, nrow = NM))
+  results_df_int <<- data.frame(matrix(ncol = 0, nrow = 0))
+  WL <<- 0
+  L <<- 0
+}
+ 
+test <- function(d){
+  initialization()
+  lists(NM,i,j)
+  loglikelihood(NM,i,j,list_alpha, list_beta, list_FP, list_FN)
+  while((Inf %in% list_likelihood)== TRUE) {
+  lists(NM,i,j)
+  loglikelihood(NM,i,j,list_alpha, list_beta, list_FP, list_FN)}
+  initialization2()
+  NA_order()
+  Ratio()
+  Intervals5()
+  Intervals10()
+  global_weigths_int(NM)
+  global_weights(NM)
+  weights(NM)
+  weights_int(NM)
+  weight_int()
+  eq_weights(i,j)
+  order_df <<- cbind(order_df, "Weight" = list_weight)
+  list_weight5 <<- inter_weight5[order_df$Interval5]
+  list_weight10 <<- inter_weight10[order_df$Interval10]
+  order_df <<- cbind(order_df, "Weight5" = list_weight5, "Weight10" = list_weight10)
+  final_wlikelihood(order_df,NM)
+  final_likelihood(order_df,NM)
+  DPWL[d] <<- WL
+  DPWL5[d] <<- WL5
+  DPWL10[d] <<- WL10
+  DPL[d] <<- L
+}
+
+```
+
+################Plot################
+
+```{r PLOT}
+data_plot <- function(x) {
+  DPWL5 <<- c()
+  DPWL10 <<- c()
+  DPWL <<- c()
+  DPL <<- c()
+  l <<- x
+  for (i in 0:x){
+    test(i)
+  }
+  results_df_int <<- data.frame("Likelihood" = DPL , "WLikelihood" = DPWL, "WLikelihood5" = DPWL5, "WLikelihood10" = DPWL10)
+
+}
+
+data_plot(NM)
+
+#layout(matrix(1:4,2,2))
+plot(DPWL, col="red", xlab = "Nth result of the function final()")
+plot(DPWL10, col="orange", xlab = "Nth result of the function final()", ylab="DPWL_int")
+plot(DPL, col="darkgreen",xlab = "Nth result of the function final()" )
+matplot(1:l,cbind(DPWL,DPWL10),pch=20, col=c("red","orange"), xlab = "Nth result of the function final()", ylab= "DPWL and DPWL_int")
+legend("topleft", legend=c("DPWL","DPWL_int"), col=c("red","orange"), pch=20)
+```
+
+We can observe a scatter plot for each of the results we obtain.
+On the x-axis, we find the number of each experiment and on the y-axis the normal and weighted likelihood values (with or without intervals) for each experiment.
+Let's focus on the 4th graph representing the weighted likelihoods DPWL and DPWL10 (intervals of 10%). 
+Let us not forget that our objective is to maximise the value we obtain from these.
+The examples are randomly generated thus the results obtained may vary from one run to another. However,in most cases, the value of the weighted likelihood obtained, with the presence of intervals, is often higher than the one without intervals.
+The results are fairly equivalent in their overall results, we do not see any really relevant differences. This can be explained by the value of the weights being relatively small. Since we have to respect the criterion that the sum of the weights must be equal to 1, we cannot have a larger value for the weights. Moreover, this could lead to errors or misinterpretations.
+We can therefore conclude that in most cases the method with intervals can be better.
+
+
+```{R Comparing graph}
+matplot(1:l,cbind(DPWL,DPWL10,DPL),pch=20, col=c("red","orange","darkgreen"), xlab = "Nth result of the function final()", ylab= "DPL, DPWL and DPWL10")
+legend("topleft", legend=c("DPL", "DPWL","DPWL10"), col=c("darkgreen", "red","orange"), pch=20)
+```
+
+This time we have added the normal likelihood to the graph in order to be able to compare with the initial result which does not take into account the presence of NA in the data matrices.
+We still find that the latter is much higher than the results we obtain. This difference is due to the same reasons explained in the report.
+
+In the previous graphs we have only represented DPWL10 but we have also done the same reasoning for smaller intervals which may provide more precision in our results.
+
+```{R}
+matplot(1:l,cbind(DPWL,DPWL5,DPWL10),pch=20, col=c("red","purple","orange"), xlab = "Nth result of the function final()", ylab= "Values of DPWL, DPWL10 and DPWL5")
+legend("topleft", legend=c("DPWL", "DPWL5", "DPWL10"), col=c("red", "purple", "orange"), pch=20)
+```
+We are now looking at a scatter plot with all the important likelihood values to compare.
+As mentioned earlier, for each experiment we can have very different results, due to their random generation.
+In these cases, the differences between each value for each x are quite similar even if we can observe for a good part the orange points above the others. This means that the likelihood with 10% intervals is slightly higher than the other two. We can therefore have more or less the same conclusion as for the previous graph, even if the latter is not very precise.
+
+```{R}
+order_df_int <<- cbind(order_df_int, "DPWL"=DPWL, "DPWL10"=DPWL10,"DPWL5"=DPWL5)
+print(order_df)
+print(order_df_int)
+```
+
