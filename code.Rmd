@@ -249,8 +249,9 @@ data
 #In this final function, we compute the likelihood and the weighted likelihood (with 5% or 10% intervals and without ) according to the functions we mentioned at the beginning.
 
 WL = 0
-WL5 =0
-WL10 =0
+WL5 = 0
+WL10 = 0
+WLLACE = 0
 L = 0
 
 final_wlikelihood <- function(df2,NM){
@@ -258,6 +259,7 @@ final_wlikelihood <- function(df2,NM){
     WL5 <<- WL5 + df2$Likelihood[i]*df2$Weight5[i]
     WL10 <<- WL10 + df2$Likelihood[i]*df2$Weight10[i]
     WL <<- WL + df2$Likelihood[i]*df2$Weight[i]
+    WLLACE <<- WLLACE + df2$Likelihood[i]*df2$WeightLACE[i]
   }
   return(WL)
 }
@@ -283,7 +285,7 @@ final_likelihood(data,NM)
 
 initialization <- function(){
   NM<<-10                 
-  i<<-60                  
+  i<<-10                  
   j<<-4                   
   list_likelihood = c() 
   list_NA = c()         
@@ -343,18 +345,6 @@ legend("topleft", legend=c("DPL", "DPWL"),
        col=c("darkgreen", "red"), pch=20)
 ```
 
-################Conclusion################
-
-To compare the values obtained for likelihood and weighted likelihood I used the negative log which allows us to have more interpretable values.
-We obtain these graphs and we can see that the likelihood values are always higher than the weighted one.
-This allows us to conclude in several ways: 
-  - This difference can be explained by the inclusion of NA. Indeed, our objective is to maximize the likelihood function. However, when a NA is present, we set 1. This is not without consequence because it increases the value of the likelihood when this should not be the case.
-We can therefore conclude here that, although the values obtained by integrating the weights give us smaller values, these would therefore better reflect the results provided by the model.
-  - The other conclusion is that there may be an error in the code and in the formulation of a formula, which could explain this big difference.
-  - We can also identify a limit, which is to not take into account the matrix with the highest number of NA. This could also mislead the final result, decreasing it
-  
-  
-  
 #######METHOD2#######
 
 In this section we will apply method 2 which is described in the report.
@@ -535,12 +525,30 @@ weight_int <- function() {
 weight_int()
 ```
 
+################Default weight by LACE################
+
+```{R weight LACE}
+weights_L <- c()
+nT =0
+weightLACE <- function(ns,Y) {
+  nT <<- ns*Y
+  w <<- (1-(ns/nT))/(Y-1)
+  for (i in 1:NM) {
+    weights_L[i] <<- w
+  }
+}
+weightLACE(i,NM)
+weights_L
+sum(weights_L)
+```
+
+
 ################Retrieving data for comparison between method################
 
 ```{r Function}
 initialization <- function(){
-  NM<<-20                   #Number of matrices (max = 150)
-  i<<-60                    
+  NM<<-15                   #Number of matrices (max = 150)
+  i<<-10                    
   j<<-4                     
   list_likelihood = c()   
   list_NA = c()           
@@ -548,14 +556,17 @@ initialization <- function(){
   list_alpha = c()        
   list_beta = c()        
   list_FP = c()           
-  list_FN = c()           
+  list_FN = c()
+  weights_L <<- c()
   df1 <<- data.frame(matrix(ncol = 0, nrow = 0))
   order_df <<- data.frame(matrix(ncol = 0, nrow = 0))
   results_df <<- data.frame(matrix(ncol = 0, nrow = 0))
   WL <<- 0
   WL5 <<- 0
   WL10 <<-0
+  WLLACE <<- 0
   L <<- 0
+  nT <<- 0
 }
 
 initialization2 <- function(){
@@ -569,7 +580,7 @@ initialization2 <- function(){
   list_weight5 <<- c()
   list_weight10 <<- c()
   list_weight_inter <<- c()
-  order_df_int <<- data.frame(matrix(ncol = 0, nrow = NM))
+  #order_df_int <<- data.frame(matrix(ncol = 0, nrow = NM))
   results_df_int <<- data.frame(matrix(ncol = 0, nrow = 0))
   WL <<- 0
   L <<- 0
@@ -577,6 +588,7 @@ initialization2 <- function(){
  
 test <- function(d){
   initialization()
+  #NM<<-10  
   lists(NM,i,j)
   loglikelihood(NM,i,j,list_alpha, list_beta, list_FP, list_FN)
   while((Inf %in% list_likelihood)== TRUE) {
@@ -593,7 +605,8 @@ test <- function(d){
   weights_int(NM)
   weight_int()
   eq_weights(i,j)
-  order_df <<- cbind(order_df, "Weight" = list_weight)
+  weightLACE(i,NM)
+  order_df <<- cbind(order_df, "Weight" = list_weight, "WeightLACE" = weights_L)
   list_weight5 <<- inter_weight5[order_df$Interval5]
   list_weight10 <<- inter_weight10[order_df$Interval10]
   order_df <<- cbind(order_df, "Weight5" = list_weight5, "Weight10" = list_weight10)
@@ -602,6 +615,7 @@ test <- function(d){
   DPWL[d] <<- WL
   DPWL5[d] <<- WL5
   DPWL10[d] <<- WL10
+  DPWLLACE[d] <<- WLLACE
   DPL[d] <<- L
 }
 
@@ -615,54 +629,60 @@ data_plot <- function(x) {
   DPWL10 <<- c()
   DPWL <<- c()
   DPL <<- c()
+  DPWLLACE <<- c()
   l <<- x
   for (i in 0:x){
     test(i)
   }
-  results_df_int <<- data.frame("Likelihood" = DPL , "WLikelihood" = DPWL, "WLikelihood5" = DPWL5, "WLikelihood10" = DPWL10)
+  results_df_int <<- data.frame("Likelihood" = DPL , "WLikelihood_LACE" = DPWLLACE, "WLikelihood" = DPWL, "WLikelihood5" = DPWL5, "WLikelihood10" = DPWL10)
 
 }
 
 data_plot(NM)
 
 #layout(matrix(1:4,2,2))
+plot(DPL, col="darkgreen",xlab = "Nth result of the function final()")
+plot(DPWLLACE, col="blue", xlab = "Nth result of the function final()")
 plot(DPWL, col="red", xlab = "Nth result of the function final()")
-plot(DPWL10, col="orange", xlab = "Nth result of the function final()", ylab="DPWL_int")
-plot(DPL, col="darkgreen",xlab = "Nth result of the function final()" )
-matplot(1:l,cbind(DPWL,DPWL10),pch=20, col=c("red","orange"), xlab = "Nth result of the function final()", ylab= "DPWL and DPWL_int")
-legend("topleft", legend=c("DPWL","DPWL_int"), col=c("red","orange"), pch=20)
+plot(DPWL10, col="orange", xlab = "Nth result of the function final()", ylab="DPWL10")
+```
+```{R}
+matplot(1:l,cbind(DPWL,DPL),pch=20, col=c("red","darkgreen"), xlab = "Nth result of the function final()", ylab= "DPWL and DPL")
+legend("topright", legend=c("DPWL","DPL"), col=c("red","darkgreen"), pch=20)
+matplot(1:l,cbind(DPWL10,DPL),pch=20, col=c("orange","darkgreen"), xlab = "Nth result of the function final()", ylab= "DPWL10 and DPL")
+legend("topright", legend=c("DPWL10","DPL"), col=c("orange","darkgreen"), pch=20)
+matplot(1:l,cbind(DPWL,DPWLLACE),pch=20, col=c("red","blue"), xlab = "Nth result of the function final()", ylab= "DPWL and DPWL_LACE")
+legend("topright", legend=c("DPWL","DPWL_LACE"), col=c("red","blue"), pch=20)
+matplot(1:l,cbind(DPWL,DPWL10),pch=20, col=c("red","orange"), xlab = "Nth result of the function final()", ylab= "DPWL and DPWL10")
+legend("topright", legend=c("DPWL","DPWL10"), col=c("red","orange"), pch=20)
+matplot(1:l,cbind(DPWLLACE,DPWL10),pch=20, col=c("blue","orange"), xlab = "Nth result of the function final()", ylab= "DPWL_LACE and DPWL10")
+legend("topright", legend=c("DPWL_LACE","DPWL10"), col=c("blue","orange"), pch=20)
 ```
 
-We can observe a scatter plot for each of the results we obtain.
-On the x-axis, we find the number of each experiment and on the y-axis the normal and weighted likelihood values (with or without intervals) for each experiment.
-Let's focus on the 4th graph representing the weighted likelihoods DPWL and DPWL10 (intervals of 10%). 
-Let us not forget that our objective is to maximise the value we obtain from these.
-The examples are randomly generated thus the results obtained may vary from one run to another. However,in most cases, the value of the weighted likelihood obtained, with the presence of intervals, is often higher than the one without intervals.
-The results are fairly equivalent in their overall results, we do not see any really relevant differences. This can be explained by the value of the weights being relatively small. Since we have to respect the criterion that the sum of the weights must be equal to 1, we cannot have a larger value for the weights. Moreover, this could lead to errors or misinterpretations.
-We can therefore conclude that in most cases the method with intervals can be better.
-
+```{R}
+results_df_int[c(2,5)]
+```
 
 ```{R Comparing graph}
-matplot(1:l,cbind(DPWL,DPWL10,DPL),pch=20, col=c("red","orange","darkgreen"), xlab = "Nth result of the function final()", ylab= "DPL, DPWL and DPWL10")
-legend("topleft", legend=c("DPL", "DPWL","DPWL10"), col=c("darkgreen", "red","orange"), pch=20)
+matplot(1:l,cbind(DPWL,DPWL10,DPWLLACE),pch=20, col=c("red","orange","blue","darkgreen"), xlab = "Nth result of the function final()", ylab= "DPL, DPWL and DPWL10")
+legend("topright", legend=c("DPWL","DPWL10", "DPWLLACE"), col=c("red","orange","blue"), pch=20)
 ```
 
-This time we have added the normal likelihood to the graph in order to be able to compare with the initial result which does not take into account the presence of NA in the data matrices.
-We still find that the latter is much higher than the results we obtain. This difference is due to the same reasons explained in the report.
-
-In the previous graphs we have only represented DPWL10 but we have also done the same reasoning for smaller intervals which may provide more precision in our results.
-
 ```{R}
+matplot(1:l,cbind(DPWL5,DPWL10),pch=20, col=c("purple","orange"), xlab = "Nth result of the function final()", ylab= "Values of DPWL10 and DPWL5")
+legend("topright", legend=c("DPWL5", "DPWL10"), col=c("purple", "orange"), pch=20)
+matplot(1:l,cbind(DPWL5,DPWL),pch=20, col=c("purple","red"), xlab = "Nth result of the function final()", ylab= "Values of DPWL and DPWL5")
+legend("topright", legend=c("DPWL5", "DPWL"), col=c("purple", "red"), pch=20)
 matplot(1:l,cbind(DPWL,DPWL5,DPWL10),pch=20, col=c("red","purple","orange"), xlab = "Nth result of the function final()", ylab= "Values of DPWL, DPWL10 and DPWL5")
-legend("topleft", legend=c("DPWL", "DPWL5", "DPWL10"), col=c("red", "purple", "orange"), pch=20)
+legend("topright", legend=c("DPWL", "DPWL5", "DPWL10"), col=c("red", "purple", "orange"), pch=20)
 ```
-We are now looking at a scatter plot with all the important likelihood values to compare.
-As mentioned earlier, for each experiment we can have very different results, due to their random generation.
-In these cases, the differences between each value for each x are quite similar even if we can observe for a good part the orange points above the others. This means that the likelihood with 10% intervals is slightly higher than the other two. We can therefore have more or less the same conclusion as for the previous graph, even if the latter is not very precise.
 
 ```{R}
-order_df_int <<- cbind(order_df_int, "DPWL"=DPWL, "DPWL10"=DPWL10,"DPWL5"=DPWL5)
-print(order_df)
+matplot(1:l,cbind(DPWL,DPWL5,DPWL10, DPWLLACE),pch=20, col=c("red","purple","orange","blue"), xlab = "Nth result of the function final()", ylab= "Values of DPWL, DPWL10 and DPWL5")
+legend("topright", legend=c("DPWL", "DPWL5", "DPWL10", "DPWLLACE"), col=c("red", "purple", "orange","blue"), pch=20)
+```
+
+```{R}
+order_df_int <<- data.frame("DPWLLACE" = DPWLLACE, "DPWL"=DPWL, "DPWL10"=DPWL10,"DPWL5"=DPWL5)
 print(order_df_int)
 ```
-
