@@ -301,7 +301,7 @@ initialization <- function(){
   L <<- 0
 }
  
-final <- function(d){
+final1 <- function(d){
   initialization()
   lists(NM,i,j)
   loglikelihood(NM,i,j,list_alpha, list_beta, list_FP, list_FN)
@@ -329,7 +329,7 @@ data_plot <- function(x) {
   DPL <<- c()
   l <<- x
   for (i in 0:x){
-    final(i)
+    final1(i)
   }
   results_df <<- data.frame("Likelihood" = DPL , "WLikelihood" = DPWL)
 }
@@ -586,7 +586,7 @@ initialization2 <- function(){
   L <<- 0
 }
  
-test <- function(d){
+final <- function(d){
   initialization()
   #NM<<-10  
   lists(NM,i,j)
@@ -632,7 +632,7 @@ data_plot <- function(x) {
   DPWLLACE <<- c()
   l <<- x
   for (i in 0:x){
-    test(i)
+    final(i)
   }
   results_df_int <<- data.frame("Likelihood" = DPL , "WLikelihood_LACE" = DPWLLACE, "WLikelihood" = DPWL, "WLikelihood5" = DPWL5, "WLikelihood10" = DPWL10)
 
